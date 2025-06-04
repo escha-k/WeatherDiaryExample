@@ -1,6 +1,8 @@
 package com.project.weather.service;
 
+import com.project.weather.domain.DateWeather;
 import com.project.weather.domain.Diary;
+import com.project.weather.repository.DateWeatherRepository;
 import com.project.weather.repository.DiaryRepository;
 import lombok.RequiredArgsConstructor;
 import org.json.simple.JSONArray;
@@ -8,6 +10,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,31 +25,24 @@ import java.util.List;
 import java.util.Map;
 
 @RequiredArgsConstructor
+@Transactional
 @Service
 public class DiaryServiceImpl implements DiaryService {
 
     private final DiaryRepository diaryRepository;
+    private final DateWeatherRepository dateWeatherRepository;
 
     @Value("${openweathermap.key}")
     private String apiKey;
 
     @Override
     public void createDiary(LocalDate date, String text) {
-        // openweathermap 에서 날씨 데이터 가져오기
-        String weatherApiString = getWeatherString();
-
-        // 받아온 날씨 json 파싱
-        Map<String, Object> parsedMap = parseWeather(weatherApiString);
-
-        // 날씨 데이터 + 일기 값 db에 저장
-        String weather = parsedMap.get("main").toString();
-        String icon = parsedMap.get("icon").toString();
-        Double temperature = (Double) parsedMap.get("temp");
+        DateWeather dateWeather = getDateWeather(date);
 
         Diary diary = Diary.builder()
-                .weather(weather)
-                .icon(icon)
-                .temperature(temperature)
+                .weather(dateWeather.getWeather())
+                .icon(dateWeather.getIcon())
+                .temperature(dateWeather.getTemperature())
                 .text(text)
                 .date(date)
                 .build();
@@ -54,14 +50,21 @@ public class DiaryServiceImpl implements DiaryService {
         diaryRepository.save(diary);
     }
 
+    private DateWeather getDateWeather(LocalDate date) {
+        return dateWeatherRepository.findById(date).orElse(getWeatherFromApi());
+    }
+
     @Override
+    @Transactional(readOnly = true)
     public List<Diary> getDiary(LocalDate date) {
         List<Diary> diaries = diaryRepository.findAllByDate(date);
 
         return diaries;
     }
 
+
     @Override
+    @Transactional(readOnly = true)
     public List<Diary> getDiaries(LocalDate startDate, LocalDate endDate) {
         List<Diary> diaries = diaryRepository.findAllByDateBetween(startDate, endDate);
 
@@ -69,7 +72,6 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     @Override
-    @Transactional
     public void updateDiary(LocalDate date, String text) {
         // 일기장 가져오기
         Diary updatedDiary = diaryRepository.findFirstByDate(date);
@@ -79,9 +81,34 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     @Override
-    @Transactional
     public void deleteDiary(LocalDate date) {
         diaryRepository.deleteAllByDate(date);
+    }
+
+    @Scheduled(cron = "0 0 1 * * *")
+    public void saveWeatherDate() {
+        dateWeatherRepository.save(getWeatherFromApi());
+    }
+
+    private DateWeather getWeatherFromApi() {
+        // openweathermap 에서 날씨 데이터 가져오기
+        String weatherApiString = getWeatherString();
+
+        // 받아온 날씨 json 파싱
+        Map<String, Object> parsedMap = parseWeather(weatherApiString);
+
+        String weather = parsedMap.get("main").toString();
+        String icon = parsedMap.get("icon").toString();
+        Double temperature = (Double) parsedMap.get("temp");
+
+        DateWeather dateWeather = DateWeather.builder()
+                .date(LocalDate.now())
+                .weather(weather)
+                .icon(icon)
+                .temperature(temperature)
+                .build();
+
+        return dateWeather;
     }
 
     private Map<String, Object> parseWeather(String weatherApiString) {
