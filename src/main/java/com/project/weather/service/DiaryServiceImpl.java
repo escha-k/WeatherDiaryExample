@@ -1,5 +1,6 @@
 package com.project.weather.service;
 
+import com.project.weather.WeatherDiaryProjectApplication;
 import com.project.weather.domain.DateWeather;
 import com.project.weather.domain.Diary;
 import com.project.weather.repository.DateWeatherRepository;
@@ -9,6 +10,8 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -32,11 +35,15 @@ public class DiaryServiceImpl implements DiaryService {
     private final DiaryRepository diaryRepository;
     private final DateWeatherRepository dateWeatherRepository;
 
+    private static final Logger logger = LoggerFactory.getLogger(WeatherDiaryProjectApplication.class);
+
     @Value("${openweathermap.key}")
     private String apiKey;
 
     @Override
     public void createDiary(LocalDate date, String text) {
+        logger.info("Started to create diary");
+
         DateWeather dateWeather = getDateWeather(date);
 
         Diary diary = Diary.builder()
@@ -48,6 +55,8 @@ public class DiaryServiceImpl implements DiaryService {
                 .build();
 
         diaryRepository.save(diary);
+
+        logger.info("Finished to create diary");
     }
 
     private DateWeather getDateWeather(LocalDate date) {
@@ -57,6 +66,8 @@ public class DiaryServiceImpl implements DiaryService {
     @Override
     @Transactional(readOnly = true)
     public List<Diary> getDiary(LocalDate date) {
+        logger.debug("Read diary");
+
         List<Diary> diaries = diaryRepository.findAllByDate(date);
 
         return diaries;
@@ -87,6 +98,7 @@ public class DiaryServiceImpl implements DiaryService {
 
     @Scheduled(cron = "0 0 1 * * *")
     public void saveWeatherDate() {
+        logger.info("날씨 데이터 자동 저장");
         dateWeatherRepository.save(getWeatherFromApi());
     }
 
