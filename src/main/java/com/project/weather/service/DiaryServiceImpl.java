@@ -3,6 +3,7 @@ package com.project.weather.service;
 import com.project.weather.WeatherDiaryProjectApplication;
 import com.project.weather.domain.DateWeather;
 import com.project.weather.domain.Diary;
+import com.project.weather.error.InvalidDateException;
 import com.project.weather.repository.DateWeatherRepository;
 import com.project.weather.repository.DiaryRepository;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +67,9 @@ public class DiaryServiceImpl implements DiaryService {
     @Override
     @Transactional(readOnly = true)
     public List<Diary> getDiary(LocalDate date) {
+        if (date.isBefore(LocalDate.ofYearDay(1900, 1)) || date.isAfter(LocalDate.ofYearDay(3000, 1))) {
+            throw new InvalidDateException();
+        }
         logger.debug("Read diary");
 
         List<Diary> diaries = diaryRepository.findAllByDate(date);
